@@ -7,7 +7,6 @@ import os
 import random
 from datetime import datetime
 from typing import TypedDict
-from pathlib import Path
 from . import utils
 
 
@@ -183,6 +182,9 @@ class MockNotesCreator:
         self.notion_connector = notion_connector
         self.draft_enhancer = draft_enhancer
         self.image_text_extractor = image_text_extractor
+        self.client = None
+        self.agent = None
+        self.session = None
 
     async def notes_creation(self):
         """Create notes without any LLM calls."""
@@ -196,107 +198,45 @@ class MockNotesCreator:
         workflow_result = await workflow.ainvoke({"user_input": query})
 
         # Connect to Notion MCP server
-        await self.notion_connector.connect_to_server()
+        self.client, self.agent = await self.notion_connector()
 
         # Prepare data with TEST title and timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         title = f"TEST - {timestamp}"
-        notion_page_id = os.getenv("NOTION_PAGE_ID")
         content = workflow_result["agent_response"]
 
         print(f"[TEST MODE] Creating Notion page with title: {title}")
         print(f"[TEST MODE] Content length: {len(content)} characters")
 
         # Create page directly using MCP tools (no LLM decision)
-        await self._create_notion_page_directly(title, notion_page_id, content)
+        await self._create_notion_page_directly(title, content)
 
         print("[TEST MODE] ✅ Page created successfully!")
 
-    async def _create_notion_page_directly(self, title: str, parent_page_id: str, content: str):
+    async def _create_notion_page_directly(self, title: str, content: str):
         """
         Create Notion blocks directly without LLM deciding the structure.
         This simulates what the LLM would do, but with hardcoded logic.
         """
         # Step 1: Create the page
         print("[TEST MODE] Creating Notion page...")
-        page_result = await self.notion_connector.session.call_tool(
-            "API-post-page",
-            {
-                "parent": {"page_id": parent_page_id},
-                "properties": {
-                    "title": {
-                        "title": [{"text": {"content": title}}]
-                    }
+        await self.client.create_all_sessions()
+        self.session = self.client.get_session("notionMCP")
+
+        page_result = await self.session.call_tool("notion-create-pages", {
+            "pages": [
+                {
+                    "properties": {
+                        "title": title,
+                    },
+                    "content": content
                 }
-            }
-        )
+            ]
+        })
 
         # Extract the new page ID from the result
         page_id = self._extract_page_id(page_result)
         print(f"[TEST MODE] Page created with ID: {page_id}")
-
-        # Step 2: Parse content and create blocks
-        lines = content.split('\n')
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Determine block type based on content patterns
-            if line.startswith('# '):
-                # Heading 1
-                await self._create_block(page_id, "heading_1", line[2:])
-            elif line.startswith('## '):
-                # Heading 2
-                await self._create_block(page_id, "heading_2", line[3:])
-            elif any(line.startswith(f"{i}. ") for i in range(1, 10)):
-                # Numbered heading or paragraph
-                await self._create_block(page_id, "heading_2", line)
-            elif line.startswith('- '):
-                # Bulleted list
-                await self._create_block(page_id, "bulleted_list_item", line[2:])
-            else:
-                # Regular paragraph
-                await self._create_block(page_id, "paragraph", line)
-
-    async def _create_block(self, page_id: str, block_type: str, text: str):
-        """Helper to create a single Notion block."""
-        if len(text) > 1500:
-            # Split long text into chunks
-            chunks = [text[i:i+1500] for i in range(0, len(text), 1500)]
-            for chunk in chunks:
-                await self._create_single_block(page_id, block_type, chunk)
-        else:
-            await self._create_single_block(page_id, block_type, text)
-
-    async def _create_single_block(self, page_id: str, block_type: str, text: str):
-        """Create a single Notion block via MCP."""
-        print(f"[TEST MODE] Creating {block_type}: {text[:50]}...")
-
-        try:
-            await self.notion_connector.session.call_tool(
-                "API-patch-block-children",
-                {
-                    "block_id": page_id,
-                    "children": [
-                        {
-                            "object": "block",
-                            "type": block_type,
-                            block_type: {
-                                "rich_text": [
-                                    {
-                                        "type": "text",
-                                        "text": {"content": text}
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            )
-        except Exception as e:
-            print(f"[TEST MODE] ⚠️  Error creating block: {e}")
 
     def _extract_page_id(self, page_result) -> str:
         """Extract page ID from MCP result."""
@@ -307,7 +247,7 @@ class MockNotesCreator:
         import json
         try:
             result_json = json.loads(result_text)
-            return result_json.get("id", "")
+            return result_json.get("pages", "")[0]["id"]
         except:
             # Fallback: extract ID from text if JSON parsing fails
             if '"id":' in result_text:

@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 
 from Notes2Notion.notes_builder import NotesCreator, DraftEnhancer
-from Notes2Notion.tooling import ImageTextExtractor, McpNotionConnector
+from Notes2Notion.tooling import ImageTextExtractor, create_notion_connector
 from Notes2Notion.mock_components import (MockImageTextExtractor, MockDraftEnhancer,
                                           MockNotesCreator)
 
@@ -20,8 +20,7 @@ async def main(test_mode: bool = False):
     # Path is relative to this file's location
     current_file = Path(__file__)
     notes_pictures_path = current_file.parent / "notes_pictures"
-
-    notion_connexion = McpNotionConnector()
+    notion_connexion = create_notion_connector
 
     if test_mode:
         print("\n" + "="*60)
@@ -40,11 +39,8 @@ async def main(test_mode: bool = False):
         notes_creator = NotesCreator(notion_connexion, draft_enhancer,
                                      image_text_extractor)
 
-    try:
-        await notes_creator.notes_creation()
-        print("\n✅ Notes creation completed successfully!")
-    finally:
-        await notion_connexion.cleanup()
+    await notes_creator.notes_creation()
+    print("\n✅ Notes creation completed successfully!")
 
 
 if __name__ == "__main__":

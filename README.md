@@ -19,35 +19,16 @@ The PWA mode provides a complete web application with:
 ### Prerequisites
 
 - **[Docker](https://www.docker.com/)** and **Docker Compose**
-- **Notion Account** - With an internal integration created:
-  1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
-  2. Create a new internal integration
-  3. Copy the **Integration Token** (you'll need this for `NOTION_TOKEN`)
-  4. Share the target Notion page with your integration
-  5. Copy the **Page ID** from the page URL (you'll need this for `NOTION_PAGE_ID`)
+- **Notion Account**  
 - **OpenAI Account** - With an active API key ([Get one here](https://platform.openai.com/api-keys))
-- **Azure Account with Azure AI Foundry** (Optional) - For Azure OpenAI integration
-  - Deploy an LLM with the deployment name `gpt-4-32k-last`
-  - ⚠️ **Important**: You can deploy any model from the GPT-4 family, but **must keep the deployment name as `gpt-4-32k-last`**
 
 ### Installation
 
-1. **Pull the MCP Notion Docker image**:
-   ```bash
-   docker pull mcp/notion
-   ```
 
-2. **Configure environment variables**:
+1**Configure environment variables**:
 
    Create a `.env` file at the root of the project with:
    ```env
-   # Notion Configuration
-   NOTION_TOKEN=your_notion_integration_token
-   NOTION_PAGE_ID=your_target_page_id
-
-   # Azure OpenAI Configuration (optional)
-   AZURE_OPENAI_API_KEY=your_azure_openai_api_key
-   AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint
 
    # OpenAI Configuration (required for image text extraction)
    OPENAI_API_KEY=your_openai_api_key
@@ -304,7 +285,7 @@ PYTHONPATH=src uv run python src/Notes2Notion/main.py --test-mode
 **What happens in test mode:**
 - ✅ Detects images in `notes_pictures/`
 - ✅ Generates structured mock content (no GPT-4o-mini calls)
-- ✅ Simulates the enhancement workflow (no Azure OpenAI calls)
+- ✅ Simulates the enhancement workflow (no OpenAI calls)
 - ✅ **Actually uploads to Notion** (tests the real Notion integration)
 - 💰 **Cost: $0** (zero LLM API calls)
 
@@ -339,7 +320,6 @@ PYTHONPATH=src uv run pytest -v
 - 🐍 **Python 3.12+**
 - 🌐 **Flask** - REST API server
 - 🤖 **OpenAI API** - GPT-4o-mini for vision/text extraction
-- ☁️ **Azure OpenAI** - GPT-4 for text processing (optional)
 - 🔗 **LangChain & LangGraph** - AI workflow orchestration
 - 🧱 **Notion MCP Server** - Model Context Protocol integration
 - 🐳 **Docker** - Containerization

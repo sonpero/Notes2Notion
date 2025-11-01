@@ -18,7 +18,7 @@ src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
 from Notes2Notion.notes_builder import NotesCreator, DraftEnhancer
-from Notes2Notion.tooling import ImageTextExtractor, McpNotionConnector
+from Notes2Notion.tooling import ImageTextExtractor, create_notion_connector
 from Notes2Notion.mock_components import (MockImageTextExtractor, MockDraftEnhancer,
                                           MockNotesCreator)
 
@@ -173,54 +173,42 @@ async def process_and_upload(folder_path: str, test_mode: bool = False):
     Returns:
         Success message string
     """
-    notion_connector = McpNotionConnector()
+    notion_connector = create_notion_connector
 
-    try:
-        if test_mode:
-            print("🧪 TEST MODE - Using mock components (zero LLM calls)")
-            image_text_extractor = MockImageTextExtractor(folder_path)
-            draft_enhancer = MockDraftEnhancer()
-            notes_creator = MockNotesCreator(
-                notion_connector,
-                draft_enhancer,
-                image_text_extractor
-            )
-        else:
-            print("🚀 PRODUCTION MODE - Using real LLM components")
-            image_text_extractor = ImageTextExtractor(folder_path)
-            draft_enhancer = DraftEnhancer()
-            notes_creator = NotesCreator(
-                notion_connector,
-                draft_enhancer,
-                image_text_extractor
-            )
+    if test_mode:
+        print("🧪 TEST MODE - Using mock components (zero LLM calls)")
+        image_text_extractor = MockImageTextExtractor(folder_path)
+        draft_enhancer = MockDraftEnhancer()
+        notes_creator = MockNotesCreator(
+            notion_connector,
+            draft_enhancer,
+            image_text_extractor
+        )
+    else:
+        print("🚀 PRODUCTION MODE - Using real LLM components")
+        image_text_extractor = ImageTextExtractor(folder_path)
+        draft_enhancer = DraftEnhancer()
+        notes_creator = NotesCreator(
+            notion_connector,
+            draft_enhancer,
+            image_text_extractor
+        )
 
-        await notes_creator.notes_creation()
+    await notes_creator.notes_creation()
 
-        mode_label = "TEST MODE" if test_mode else "PRODUCTION MODE"
-        return f"Successfully created Notion page! ({mode_label})"
-
-    finally:
-        await notion_connector.cleanup()
+    mode_label = "TEST MODE" if test_mode else "PRODUCTION MODE"
+    return f"Successfully created Notion page! ({mode_label})"
 
 
 if __name__ == '__main__':
     # Verify environment variables
-    required_vars = ['NOTION_TOKEN', 'NOTION_PAGE_ID']
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-
-    if missing_vars:
-        print(f"\n❌ ERROR: Missing environment variables: {', '.join(missing_vars)}")
-        print("Please check your .env file")
-        sys.exit(1)
 
     # Check OpenAI configuration
     has_openai = os.getenv('OPENAI_API_KEY')
-    has_azure = os.getenv('AZURE_OPENAI_API_KEY') and os.getenv('AZURE_OPENAI_ENDPOINT')
 
-    if not has_openai and not has_azure:
+    if not has_openai:
         print("\n❌ ERROR: No OpenAI configuration found")
-        print("Please set either OPENAI_API_KEY or (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)")
+        print("Please set OPENAI_API_KEY")
         sys.exit(1)
 
     port = int(os.getenv('BACKEND_PORT', 5001))
@@ -233,7 +221,6 @@ if __name__ == '__main__':
     print(f"  - POST http://localhost:{port}/api/upload")
     print(f"\nEnvironment:")
     print(f"  - Notion: ✅ Configured")
-    print(f"  - OpenAI: {'✅ Azure' if has_azure else '✅ OpenAI'}")
     print(f"  - Upload folder: {UPLOAD_FOLDER}")
     print(f"\n{'='*60}\n")
 

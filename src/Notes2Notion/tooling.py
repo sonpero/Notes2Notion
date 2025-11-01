@@ -1,13 +1,12 @@
 import base64
-import os
-import json
+
 from openai import OpenAI
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from contextlib import AsyncExitStack
-from typing import Optional
+from langchain_openai import ChatOpenAI
+
+from mcp_use import MCPAgent, MCPClient
 
 from . import utils
+from . import settings
 
 
 class ImageTextExtractor:
@@ -55,44 +54,21 @@ class ImageTextExtractor:
         return self.text
 
 
-class McpNotionConnector:
-    def __init__(self):
-        # Initialize session and client objects
-        self.session: Optional[ClientSession] = None
-        self.exit_stack = AsyncExitStack()
-
-    async def connect_to_server(self):
-        notion_token = os.getenv("NOTION_TOKEN")
-        if not notion_token:
-            raise EnvironmentError(
-                "NOTION_TOKEN environment variable not set.")
-
-        headers = json.dumps({
-            "Authorization": f"Bearer {notion_token}",
-            "Notion-Version": "2022-06-28"
-        })
-
-        server_params = StdioServerParameters(
-            command="docker",
-            args=[
-                "run", "--rm", "-i",
-                "-e", f"OPENAPI_MCP_HEADERS={headers}",
-                "mcp/notion"
-            ],
-            env=None
-        )
-
-        # Store session in self
-        stdio, write = await self.exit_stack.enter_async_context(
-            stdio_client(server_params))
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(stdio, write))
-        await self.session.initialize()
-
-        tools = await self.session.list_tools()
-        print("Available tools:", [tool.name for tool in tools.tools])
-
-    async def cleanup(self):
-        """Clean up resources"""
-        await self.exit_stack.aclose()
-
+async def create_notion_connector():
+    llm = ChatOpenAI(model=settings.M, temperature=0)
+    config = {
+                  "mcpServers": {
+                    "notionMCP": {
+                      "command": "npx",
+                      "args": [
+                        "-y",
+                        "mcp-remote",
+                        "https://mcp.notion.com/mcp",
+                        "--debug"
+                      ]
+                    }
+                  }
+                }
+    client = MCPClient.from_dict(config)
+    agent = MCPAgent(llm=llm, client=client, max_steps=30)
+    return client, agent

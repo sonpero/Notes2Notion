@@ -3,9 +3,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies (docker CLI and curl for healthcheck)
-RUN apt-get update && apt-get install -y \
-    docker.io \
-    curl \
+RUN apt-get update && apt-get install -y curl gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (better caching)

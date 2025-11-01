@@ -1,16 +1,12 @@
-import json
-import os
-
 from typing import TypedDict
 from pathlib import Path
 
 from langgraph.graph import StateGraph
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import (HumanMessage, AIMessage, FunctionMessage,
-                                     SystemMessage)
+from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
 
-from .tooling import McpNotionConnector, ImageTextExtractor
+from .tooling import ImageTextExtractor, create_notion_connector
 from .settings import S, M
 
 load_dotenv()
@@ -57,7 +53,8 @@ class DraftEnhancer:
         messages = [
             SystemMessage(content="Improve this draft : ensure it is clear and easy to understand."
                                   "Keep sections as provided."
-                                  "Preserve any schemas."
+                                  "Preserve any schemas. "
+                                  "Use only the language of the draft."
                                   "Ensure the facts are correct."),
             HumanMessage(content=structured_draft)
         ]
@@ -113,7 +110,7 @@ class DraftEnhancer:
 
 class NotesCreator:
     def __init__(self,
-                 notion_connector: McpNotionConnector,
+                 notion_connector: create_notion_connector,
                  draft_enhancer: DraftEnhancer,
                  image_text_extractor: ImageTextExtractor):
 
@@ -124,14 +121,22 @@ class NotesCreator:
         self.draft_enhancer = draft_enhancer
         self.image_text_extractor = image_text_extractor
         self.llm_with_functions = None
+        self.agent = None
+        self.client = None
+        self.notion_page_id = None
 
     async def notes_creation(self):
+        await self.connect_notion_to_llm()
+        self.notion_page_id = await self.agent.run("Create if it does not "
+                                                   "exists a page "
+                                                   "named "
+                                                   "uploads. answer with the notion page id only. "
+                                                   "example : "
+                                                   "1f03533f-dbf1-8011-8f74-e2d006d2d706")
         messages = await self.prepare_content()
         await self.write_in_notion(messages)
 
     async def prepare_content(self):
-        await self.connect_notion_to_llm()
-
         query = self.get_primary_notes()
 
         workflow = await self.draft_enhancer.create_notes_workflow()
@@ -146,107 +151,28 @@ class NotesCreator:
         # Use absolute path relative to this file's location
         current_dir = Path(__file__).parent
         filename = current_dir / "base_prompt.txt"
-        notion_page_id = os.getenv("NOTION_PAGE_ID")
         base_prompt = Path(filename).read_text()
         filled_prompt = base_prompt.format(
             title=title,
-            notion_page_id=notion_page_id,
+            notion_page_id=self.notion_page_id,
             draft=enhanced_draft
             )
         print(f"\n📝 Prompt sent to LLM for Notion upload:")
         print(f"Title: {title}")
-        print(f"Parent Page ID: {notion_page_id}")
+        print(f"Parent Page ID: {self.notion_page_id}")
         print(f"Draft preview (first 200 chars): {enhanced_draft[:200]}...")
-        return [HumanMessage(content=filled_prompt)]
+        return filled_prompt
 
     async def write_in_notion(self, messages):
-        final_text = []
-        # Prevent infinite loops
-        max_iterations = 10
-        iteration = 0
-        consecutive_errors = 0
-        # Stop if we get 5 errors in a row
-        max_consecutive_errors = 5
-
-        while iteration < max_iterations:
-            iteration += 1
-            print(f"\n🔄 Iteration {iteration}/50 - Calling LLM...")
-
-            # Call LLM with current messages
-            message = await self.llm_with_functions.ainvoke(messages)
-
-            print(f"✉️  LLM response - has function_call: {hasattr(message, 'additional_kwargs') and 'function_call' in message.additional_kwargs}")
-
-            if (hasattr(message, "additional_kwargs")
-                    and "function_call" in message.additional_kwargs):
-                # Assistant wants to call a function
-                func_call = message.additional_kwargs["function_call"]
-                func_name = func_call["name"]
-                func_args_json = func_call.get("arguments", "{}")
-                func_args_dict = json.loads(func_args_json)
-
-                # Call the actual tool via MCP session
-                print(f"🔧 Calling tool: {func_name}")
-                print(f"📦 Args: {func_args_json[:200]}..." if len(func_args_json) > 200 else f"📦 Args: {func_args_json}")
-
-                result = await (self.notion_connector.session
-                                .call_tool(func_name, func_args_dict))
-
-                final_text.append(
-                    f"[Calling tool {func_name} with args {func_args_json}]")
-
-                print(f"✅ Tool result length: {len(''.join([c.text for c in result.content]))} chars")
-
-                # Append function_call message
-                messages.append(AIMessage(content="", additional_kwargs={
-                    "function_call": func_call}))
-
-                # Append function result message
-                result_text = "".join([c.text for c in result.content])
-                messages.append(
-                    FunctionMessage(name=func_name,
-                                    content=result_text))
-
-                # Check if this was an error response
-                if "error" in result_text.lower() or "validation" in result_text.lower():
-                    consecutive_errors += 1
-                    print(f"⚠️  Tool call resulted in error ({consecutive_errors}/{max_consecutive_errors})")
-                    if consecutive_errors >= max_consecutive_errors:
-                        print(f"❌ Stopping after {max_consecutive_errors} consecutive errors")
-                        final_text.append(f"[Stopped after {max_consecutive_errors} consecutive errors]")
-                        break
-                else:
-                    consecutive_errors = 0  # Reset counter on success
-
-            else:
-                # LLM didn't call a function - it's done
-                print(f"🏁 LLM finished - no more function calls")
-                if message.content:
-                    print(f"📝 Final message: {message.content[:100]}...")
-                    final_text.append(message.content)
-                break  # Exit immediately when LLM stops calling functions
-
-        if iteration >= max_iterations:
-            print(f"⚠️  Reached maximum iterations ({max_iterations})")
-            final_text.append(f"[Reached maximum iterations: {max_iterations}]")
-
-        return "\n".join(final_text)
+        try:
+            await self.agent.run(messages)
+        finally:
+            # Ensure we clean up resources properly
+            if self.client.sessions:
+                await self.client.close_all_sessions()
 
     async def connect_notion_to_llm(self):
-        await self.notion_connector.connect_to_server()
-        # Fetch available tools from MCP session
-        response = await self.notion_connector.session.list_tools()
-        functions = []
-        for tool in response.tools:
-            functions.append({
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.inputSchema
-            })
-
-        # Bind functions to LLM
-        self.llm_with_functions = (self.llm_for_notion_mcp
-                                   .bind(functions=functions))
+        self.client, self.agent = await self.notion_connector()
 
     def get_primary_notes(self):
         query = self.image_text_extractor.extract_text()
