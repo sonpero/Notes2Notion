@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import sys
 import traceback
+import requests
 from functools import wraps
 
 # Load environment variables
@@ -160,6 +161,44 @@ def upload_file():
             }), 500
 
     return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, JPEG, GIF'}), 400
+
+
+@app.route('/api/notion/oauth/exchange', methods=['POST'])
+def notion_oauth_exchange():
+    print('coucou from /api/notion/oauth/exchange')
+    data = request.get_json()
+    print(f"[DATA] {data}")
+    code = data.get("code")
+    print(f"[CODE] {code}")
+    if not code:
+        return jsonify({"error": "missing code"}), 400
+
+    print(f"client_id {os.getenv("NOTION_MCP_CLIENT_ID")}")
+    print(f"client_secret {os.getenv("NOTION_MCP_CLIENT_SECRET")}")
+    print(f"redirect_uri {os.getenv("NOTION_MCP_REDIRECT_URI")}")
+    res = requests.post(
+        "https://mcp.notion.com/token",
+        json={
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": os.getenv("NOTION_MCP_CLIENT_ID"),
+            "client_secret": os.getenv("NOTION_MCP_CLIENT_SECRET"),
+            "redirect_uri": os.getenv("NOTION_MCP_REDIRECT_URI"),
+        },
+        headers={"Content-Type": "application/json"},
+    )
+
+    if res.status_code != 200:
+        return jsonify({"error": "token_exchange_failed"}), 400
+
+    token_data = res.json()
+    print("Token response:", token_data)
+
+    # TODO: store securely. Temporary dev storage:
+    with open("/app/notion_token.json", "w") as f:
+        f.write(res.text)
+
+    return jsonify({"ok": True})
 
 
 async def process_and_upload(folder_path: str, test_mode: bool = False):
