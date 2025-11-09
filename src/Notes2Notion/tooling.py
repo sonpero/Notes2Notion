@@ -1,12 +1,17 @@
 import base64
+import json
+import os
 
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 
 from mcp_use import MCPAgent, MCPClient
+from dotenv import load_dotenv
 
 from . import utils
 from . import settings
+
+load_dotenv()
 
 
 class ImageTextExtractor:
@@ -55,20 +60,30 @@ class ImageTextExtractor:
 
 
 async def create_notion_connector():
-    llm = ChatOpenAI(model=settings.M, temperature=0)
+    notion_token = os.getenv("NOTION_TOKEN")
+    if not notion_token:
+        raise EnvironmentError("NOTION_TOKEN environment variable not set.")
+
+    llm = ChatOpenAI(model=settings.L, temperature=0)
+
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Notion-Version": "2022-06-28"
+    }
+
     config = {
-                  "mcpServers": {
-                    "notionMCP": {
-                      "command": "npx",
-                      "args": [
-                        "-y",
-                        "mcp-remote",
-                        "https://mcp.notion.com/mcp",
-                        "--debug"
-                      ]
-                    }
-                  }
-                }
+        "mcpServers": {
+            "docker_server": {
+                "command": "docker",
+                "args": [
+                    "run", "--rm", "-i",
+                    "-e", f"OPENAPI_MCP_HEADERS={json.dumps(headers)}",
+                    "mcp/notion"
+                ]
+            }
+        }
+    }
+
     client = MCPClient.from_dict(config)
     agent = MCPAgent(llm=llm, client=client, max_steps=30)
     return client, agent

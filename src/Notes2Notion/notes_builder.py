@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from .tooling import ImageTextExtractor, create_notion_connector
 from .settings import S, M
 
+import utils
+
 load_dotenv()
 
 
@@ -114,9 +116,6 @@ class NotesCreator:
                  draft_enhancer: DraftEnhancer,
                  image_text_extractor: ImageTextExtractor):
 
-        self.llm_for_notion_mcp = ChatOpenAI(model=M,
-                                             temperature=0)
-
         self.notion_connector = notion_connector
         self.draft_enhancer = draft_enhancer
         self.image_text_extractor = image_text_extractor
@@ -161,6 +160,7 @@ class NotesCreator:
         print(f"Title: {title}")
         print(f"Parent Page ID: {self.notion_page_id}")
         print(f"Draft preview (first 200 chars): {enhanced_draft[:200]}...")
+        print(f'filled prompt : {filled_prompt}')
         return filled_prompt
 
     async def write_in_notion(self, messages):
@@ -175,7 +175,7 @@ class NotesCreator:
         self.client, self.agent = await self.notion_connector()
 
     def get_primary_notes(self):
-        query = self.image_text_extractor.extract_text()
-        # file_path = './mock_txt.txt'
-        # query = utils.extract_text_from_file(file_path)
+        # query = self.image_text_extractor.extract_text()
+        file_path = './mock_txt.txt'
+        query = utils.extract_text_from_file(file_path)
         return query

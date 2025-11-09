@@ -14,6 +14,7 @@ export default function Home() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
 
+  const [notionConnected, setNotionConnected] = useState(false);
   // Check if user already has a stored access code
   useEffect(() => {
     const storedCode = localStorage.getItem("notes2notion_access_code");
@@ -21,8 +22,26 @@ export default function Home() {
       setHasAccess(true);
     }
     setIsCheckingAccess(false);
+
+    // Check Notion connection
+    const token = localStorage.getItem("notion_access_token");
+    if (token) setNotionConnected(true);
   }, []);
 
+  const handleNotionLogin = () => {
+    const clientId = process.env.NEXT_PUBLIC_NOTION_MCP_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/notion/callback`);
+    const state = crypto.randomUUID();
+    localStorage.setItem("notion_oauth_state", state);
+
+    const authUrl =
+      `https://mcp.notion.com/authorize?response_type=code` +
+      `&client_id=${clientId}` +
+      `&redirect_uri=${redirectUri}` +
+      `&state=${state}`;
+
+    window.location.href = authUrl;
+  };
   const handleRefresh = () => {
     window.location.reload();
   };
@@ -103,7 +122,14 @@ export default function Home() {
             </label>
           </div>
         )}
-
+        {!notionConnected && (
+          <button
+            onClick={handleNotionLogin}
+            className="mb-4 w-full py-3 bg-black text-white rounded-xl"
+          >
+            Connect Notion
+          </button>
+        )}
         {/* Camera Capture Component */}
         {/* In production, testMode is always false */}
         <CameraCapture testMode={isDevelopment ? testMode : false} />

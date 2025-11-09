@@ -1,7 +1,8 @@
 Create a new page titled "{title}"
 using the source page with ID {notion_page_id}.
 I will provide a draft below.
-From this draft, extract and send absolutely all the content to the Notion page.
+From this draft, extract and send absolutely all the content to the Notion page
+ "{title}".
 If the draft is long, split it into multiple Notion block creation calls (max 1500 characters per block).
 Ensure all content is uploaded sequentially until complete.
 Use the following Notion block types:
