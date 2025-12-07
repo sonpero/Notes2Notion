@@ -12,8 +12,14 @@ RUN apt-get update && apt-get install -y \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend app
+# Copy backend app and OAuth modules
 COPY backend/app.py .
+COPY backend/oauth.py .
+COPY backend/models.py .
+
+# Copy Alembic configuration
+COPY backend/alembic.ini .
+COPY backend/alembic ./alembic
 
 # Copy source code from parent directory
 COPY src /app/src

@@ -14,12 +14,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Accept build arguments (defaults)
-ARG API_HOST=localhost
-ARG APP_ENV=production
+ARG API_HOST
+ARG APP_ENV
+ARG NOTION_CLIENT_ID
+ARG NOTION_REDIRECT_URI
 
 # Set environment variables for build time
-ENV NEXT_PUBLIC_API_URL=http://${API_HOST}:5001
+ENV NEXT_PUBLIC_API_URL=${API_HOST}
 ENV NEXT_PUBLIC_APP_ENV=${APP_ENV}
+ENV NEXT_PUBLIC_NOTION_CLIENT_ID=${NOTION_CLIENT_ID}
+ENV NEXT_PUBLIC_NOTION_REDIRECT_URI=${NOTION_REDIRECT_URI}
 
 RUN npm run build
 

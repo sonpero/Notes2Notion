@@ -3,8 +3,8 @@
 Take your handwritten notes and push them directly to Notion — effortlessly.
 
 This project offers **two deployment modes**:
-- **PWA Mode** (Recommended): Full-stack web application with a mobile-friendly Progressive Web App interface
-- **CLI Mode**: Command-line script for quick local processing
+- **PWA Mode** (Recommended): Full-stack web application with **multi-user OAuth authentication**, mobile-friendly Progressive Web App interface, and BETA license key gating
+- **CLI Mode**: Command-line script for quick local processing (single-user, development use)
 
 ---
 
@@ -19,16 +19,21 @@ The PWA mode provides a complete web application with:
 ### Prerequisites
 
 - **[Docker](https://www.docker.com/)** and **Docker Compose**
-- **Notion Account** - With an internal integration created:
+- **Notion Account** - With an OAuth integration created:
   1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
-  2. Create a new internal integration
-  3. Copy the **Integration Token** (you'll need this for `NOTION_TOKEN`)
-  4. Share the target Notion page with your integration
-  5. Copy the **Page ID** from the page URL (you'll need this for `NOTION_PAGE_ID`)
+  2. Click **"+ New integration"**
+  3. Choose **"Public integration"** (not internal)
+  4. Fill in integration details (name, logo, etc.)
+  5. Under **"OAuth Domain & URIs"**, set:
+     - **Redirect URIs**: `http://localhost:3000/api/auth/callback` (for local dev)
+     - For production: `https://your-domain.com/api/auth/callback`
+  6. Under **"Capabilities"**, select:
+     - ✅ Read content
+     - ✅ Insert content
+     - ✅ Update content
+  7. Copy the **Client ID** and **Client Secret** (you'll need these for your `.env` file)
+  8. **Note**: Users will grant page access during the OAuth flow — no manual page sharing needed!
 - **OpenAI Account** - With an active API key ([Get one here](https://platform.openai.com/api-keys))
-- **Azure Account with Azure AI Foundry** (Optional) - For Azure OpenAI integration
-  - Deploy an LLM with the deployment name `gpt-4-32k-last`
-  - ⚠️ **Important**: You can deploy any model from the GPT-4 family, but **must keep the deployment name as `gpt-4-32k-last`**
 
 ### Installation
 
@@ -39,51 +44,50 @@ The PWA mode provides a complete web application with:
 
 2. **Configure environment variables**:
 
-   Create a `.env` file at the root of the project with:
+   Create a `.env` file at the root of the project. You can reference [.env.example](.env.example) for a complete template.
+
+   **Required variables**:
    ```env
-   # Notion Configuration
-   NOTION_TOKEN=your_notion_integration_token
-   NOTION_PAGE_ID=your_target_page_id
+   # Notion OAuth Configuration
+   NOTION_CLIENT_ID=your-notion-client-id-here
+   NOTION_CLIENT_SECRET=your-notion-client-secret-here
+   NOTION_REDIRECT_URI=http://localhost:3000/api/auth/callback
 
-   # Azure OpenAI Configuration (optional)
-   AZURE_OPENAI_API_KEY=your_azure_openai_api_key
-   AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint
+   # Frontend URL (used for OAuth redirects)
+   FRONTEND_URL=http://localhost:3000
 
-   # OpenAI Configuration (required for image text extraction)
-   OPENAI_API_KEY=your_openai_api_key
+   # JWT Secret for session tokens
+   # Generate with: openssl rand -hex 32
+   JWT_SECRET=your-random-jwt-secret-here
 
-   # Security - Access Code (REQUIRED for self-hosting)
-   # Generate a strong random code with: openssl rand -hex 32
-   ACCESS_CODE=your-secret-access-code-here
+   # OpenAI Configuration (required)
+   OPENAI_API_KEY=your-openai-api-key
+
+   # Database Configuration (MySQL)
+   DATABASE_URL=mysql+pymysql://notes2notion:notes2notion@mysql:3306/notes2notion?charset=utf8mb4
+
+   # MySQL Service Configuration (for docker-compose)
+   MYSQL_ROOT_PASSWORD=rootpassword
+   MYSQL_DATABASE=notes2notion
+   MYSQL_USER=notes2notion
+   MYSQL_PASSWORD=notes2notion
 
    # Application Environment
    # Options: development, production
-   # - development: allow to toggle test mode of backend
-   # - production: Optimized for production use
-   APP_ENV=development
+   # - development: allows test mode toggle
+   # - production: optimized for production use
+   APP_ENV=production
 
    # API Host Configuration
    # For desktop-only: localhost
    # For mobile access: Your local IP (e.g., 192.168.1.74)
+   # For production: Your server IP or domain
    API_HOST=localhost
    ```
 
-3. **Generate a secure access code**:
+3. **Database initialization**:
 
-   When self-hosting on a VPS or public server, you **must** set an `ACCESS_CODE` to protect your API from unauthorized access and prevent others from making LLM calls at your expense.
-
-   Generate a strong random code:
-   ```bash
-   # On Linux/macOS
-   openssl rand -hex 32
-
-   # On Windows (PowerShell)
-   [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
-   ```
-
-   Add this code to your `.env` file as `ACCESS_CODE`. Users will need to enter this code when first accessing the application.
-
-   > **Note**: If you're only running locally for personal use, you can skip this step. However, for any public deployment, this is **strongly recommended** to prevent unauthorized usage.
+   The MySQL database and schema will be automatically created when you first start the application via Docker Compose. Alembic migrations run automatically on backend startup to ensure the database schema is up to date.
 
 ### Running with Docker Compose
 
@@ -192,75 +196,298 @@ docker compose exec frontend sh
 
 ### Using the PWA
 
+#### First-Time Setup (3-Step Onboarding)
+
+**Step 1: Enter Your BETA License Key** (MANDATORY)
+
 1. **Access the application**:
    - **On desktop**: Open http://localhost:3000 in your browser
    - **On mobile**: Open http://YOUR_LOCAL_IP:3000 in your mobile browser
      - Replace `YOUR_LOCAL_IP` with the IP address you configured in your `.env` file
      - Make sure your phone is on the same WiFi network as your computer
 
-2. **Enter your access code** (first visit only):
-   - When you first access the application, you'll see an access code prompt
-   - Enter the `ACCESS_CODE` you configured in your `.env` file
-   - The code will be stored in your browser and you won't need to enter it again
-   - Share this code securely with anyone who should have access to your instance
+2. **Enter your license key**:
+   - You'll see a prompt asking for your BETA license key
+   - Enter the key provided by your administrator (format: `BETA-XXXX-XXXX-XXXX`)
+   - The key will be validated and stored in your browser
+   - **Note**: This license key is required for all users during the beta testing phase
 
-3. **Capture or upload a photo** of your handwritten notes:
+**Step 2: Authenticate with Notion**
+
+3. **Click "Sign in with Notion"**:
+   - You'll be redirected to Notion's OAuth authorization page
+   - Log in to your Notion account if prompted
+
+4. **Grant access**:
+   - Select your Notion workspace
+   - Choose at least one page to share with the integration
+   - Click "Select pages" to authorize the app
+   - You'll be redirected back to Notes2Notion
+
+**Step 3: Select Your Default Page**
+
+5. **Choose where to create notes**:
+   - You'll see a hierarchical list of all pages you've shared with the integration
+   - Use the search bar to filter pages if needed
+   - Select the page where you want your notes to be created by default
+   - Click "Confirm" to save your selection
+
+6. **You're all set!** Your authentication and preferences are now saved.
+
+#### Using the App
+
+7. **Capture or upload a photo** of your handwritten notes:
    - On mobile, you can directly capture a photo using your camera
    - On desktop, you can upload an existing image file
 
-4. **Choose processing mode**:
+8. **Choose processing mode** (development environment only):
    - **Test Mode**: Uses mock components (no LLM API calls, $0 cost)
    - **Production Mode**: Uses real AI models to extract and process your notes
 
-5. **Upload and process**: The app will:
-   - Extract text from your handwritten notes
+9. **Upload and process**: The app will:
+   - Extract text from your handwritten notes using OpenAI GPT-4o-mini
    - Structure and enhance the content
-   - Create a new page in your Notion workspace
+   - Create a new page in your selected Notion workspace
 
-6. **Install as PWA** (mobile only, optional):
-   - On iOS Safari: Tap the Share button → "Add to Home Screen"
-   - On Android Chrome: Tap the menu → "Install app" or "Add to Home Screen"
-   - This gives you a native-like app experience with offline support
+#### Returning Users
 
-### 🔒 Security & Access Control
+- **Automatic login**: If your session is still valid (7 days), you'll be logged in automatically
+- **Re-authentication**: If your session expires, you'll need to sign in with Notion again (your license key is already saved)
 
-When self-hosting Notes2Notion on a VPS or public server, it's **critical** to set up access control to prevent unauthorized users from discovering your application URL and making LLM API calls at your expense.
+#### Install as PWA (Optional)
 
-#### Access Code Protection
+- **On iOS Safari**: Tap the Share button → "Add to Home Screen"
+- **On Android Chrome**: Tap the menu → "Install app" or "Add to Home Screen"
+- This gives you a native-like app experience with offline support
 
-Notes2Notion includes a built-in access code mechanism:
+### 🗄️ Database Management
 
-- **How it works**: Users must enter a secret code when first accessing the application
-- **Storage**: The code is stored in the browser's localStorage for convenience
-- **API Protection**: Every API request includes the code in an `Authorization` header
-- **Backend Validation**: The Flask backend validates the code before processing requests
+Notes2Notion uses **MySQL** to persist user data, OAuth credentials, and license keys.
 
-#### Setting up access control
+#### MySQL Configuration
 
-1. **Generate a strong access code** (see Installation step 3 above)
-2. **Add it to your `.env` file**: `ACCESS_CODE=your-generated-code`
-3. **Restart your containers**: `docker compose up -d --build`
-4. **Share the code securely** with authorized users via a secure channel
+- **Docker Compose** includes a MySQL service that's automatically configured
+- **Database creation**: Happens automatically on first startup
+- **Character set**: UTF8MB4 for full Unicode and emoji support
+- **Connection string format**: `mysql+pymysql://user:password@host:port/database?charset=utf8mb4`
 
-#### Important notes
+#### Alembic Migrations
 
-- ⚠️ **Anyone with the access code can use your service** - treat it like a password
-- ⚠️ **No user management** - this is a simple shared secret, not multi-user auth
-- ✅ **Future-proof** - Compatible with NextAuth migration (planned feature)
-- ✅ **Optional for local use** - Skip if only running on localhost for personal use
+Database schema management is handled by [Alembic](https://alembic.sqlalchemy.org/):
 
-#### Resetting the access code
+- **Automatic migrations**: Run on backend startup
+- **Migration files**: Located in `backend/alembic/versions/`
+- **Configuration**: See `backend/alembic.ini` for advanced settings
 
-If you need to reset the code (e.g., if it's been compromised):
+**Current schema**:
+- `users` table: Stores Notion OAuth tokens, workspace info, and default page IDs
+- `license_keys` table: Manages BETA license keys and their activation status
 
-1. Generate a new code: `openssl rand -hex 32`
-2. Update your `.env` file with the new code
-3. Restart containers: `docker compose restart`
-4. All users will need to clear their browser storage and enter the new code
+#### Database Schema
+
+**User**:
+- `bot_id` - Unique Notion bot identifier (primary identifier)
+- `workspace_id`, `workspace_name` - Notion workspace details
+- `access_token`, `refresh_token` - OAuth credentials
+- `notion_page_id` - User's selected default page for notes
+- `created_at`, `updated_at` - Timestamps
+
+**LicenseKey**:
+- `key` - License key in format BETA-XXXX-XXXX-XXXX
+- `is_active` - Whether the license is currently valid
+- `used_by_user_id` - Which user activated this license
+- `created_at`, `activated_at`, `revoked_at` - Lifecycle timestamps
+
+---
+
+### 👨‍💼 Administrator Guide
+
+As an administrator deploying Notes2Notion for beta users, you'll need to manage license keys.
+
+#### Creating License Keys
+
+Use the **`admin_tools/license_manager.py`** CLI tool:
+
+```bash
+cd admin_tools
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Generate a single license key
+python license_manager.py generate
+
+# Generate multiple keys
+python license_manager.py generate --count 10 --notes "Batch #1 for beta testers"
+
+# Save keys to a file
+python license_manager.py generate --count 50 --output keys.txt
+```
+
+#### Managing Licenses
+
+```bash
+# List all licenses
+python license_manager.py list
+
+# List only active licenses
+python license_manager.py list --active-only
+
+# Check a specific license
+python license_manager.py check BETA-ABCD-1234-EFGH
+
+# Revoke a license
+python license_manager.py revoke BETA-ABCD-1234-EFGH
+
+# View statistics
+python license_manager.py stats
+```
+
+#### License Key Format
+
+- Format: `BETA-XXXX-XXXX-XXXX`
+- Cryptographically secure random generation
+- Case-insensitive (auto-converted to uppercase)
+- Excludes confusing characters (0, O, I, 1)
+
+#### Distribution
+
+- Share keys securely with beta users via encrypted channels
+- Each key can only be activated by one user
+- Users must enter the key before authenticating with Notion
+
+For detailed information, see [admin_tools/README.md](admin_tools/README.md).
+
+---
+
+### 🔒 Security: OAuth + License Key System
+
+Notes2Notion implements a multi-layered security approach for production deployments.
+
+#### BETA License Key System (MANDATORY)
+
+**Access Control**:
+- ✅ **Required for all users** during beta testing phase
+- ✅ One license per user (cannot be shared across workspaces)
+- ✅ Can be revoked by administrators if needed
+- ✅ Validates before OAuth flow begins
+
+**How it works**:
+1. User enters license key on first visit
+2. Backend validates key is active and unused (or used by same user)
+3. Key stored in browser localStorage
+4. All API requests include key for validation
+
+#### OAuth 2.0 Authentication
+
+**Multi-User Isolation**:
+- ✅ Each user has separate Notion workspace credentials
+- ✅ OAuth tokens stored securely in MySQL database
+- ✅ Per-user default page selection
+- ✅ No credential sharing between users
+
+**OAuth Flow**:
+1. User clicks "Sign in with Notion"
+2. Redirected to Notion's authorization page
+3. User grants access to specific pages
+4. Backend exchanges authorization code for access + refresh tokens
+5. Tokens stored in database, linked to user's bot_id
+
+**Token Management**:
+- **Access tokens**: Short-lived, used for Notion API calls
+- **Refresh tokens**: Long-lived, used to obtain new access tokens
+- **Automatic refresh**: Backend refreshes expired tokens transparently
+
+#### JWT Session Management
+
+**Session Tokens**:
+- ✅ **7-day expiration** for user convenience
+- ✅ **HMAC-SHA256 signatures** for integrity
+- ✅ Stored in browser localStorage
+- ✅ Validated on every API request
+
+**How it works**:
+- Backend creates JWT after successful OAuth
+- Token contains only bot_id (minimal sensitive data)
+- Frontend includes token in `Authorization: Bearer <token>` header
+- Backend verifies signature and expiration before processing requests
+
+#### Security Benefits
+
+| Feature | Old System (ACCESS_CODE) | New System (OAuth + License) |
+|---------|-------------------------|------------------------------|
+| Authentication | Shared secret | OAuth 2.0 standard |
+| User isolation | None | Per-user credentials |
+| Token expiration | Never | 7 days (JWT) |
+| Token refresh | Manual | Automatic |
+| Credential storage | Environment variables | Encrypted database |
+| Revocation | Reset code for all | Per-user license revocation |
+| Multi-user | Not supported | Full support |
+
+#### Production Deployment Best Practices
+
+1. **Generate a strong JWT secret**:
+   ```bash
+   openssl rand -hex 32
+   ```
+
+2. **Use HTTPS** for production deployments to protect tokens in transit
+
+3. **Secure your database**: Use strong MySQL passwords and restrict network access
+
+4. **Monitor license usage**: Regularly check which keys are activated
+
+5. **Revoke compromised keys**: Use `license_manager.py revoke` if a key is leaked
+
+---
+
+### 🧪 End-to-End Testing
+
+Notes2Notion has been validated with comprehensive end-to-end tests covering all critical user workflows.
+
+#### Validated Test Scenarios
+
+1. **✅ Complete Onboarding**
+   - Valid license key entry
+   - Full OAuth flow with Notion
+   - Page selection from shared pages
+
+2. **✅ User Logout & Reconnection**
+   - User logs out and logs back in
+   - Same license key and workspace
+   - No duplicate user records created
+
+3. **✅ Expired Token Handling**
+   - Notion access token expires
+   - Automatic token refresh using refresh_token
+   - Seamless continuation of service
+
+4. **✅ Revoked Integration**
+   - User revokes Notion integration access
+   - App detects revocation and prompts re-authentication
+   - Database updated with new tokens after re-auth
+
+5. **✅ Deleted Default Page**
+   - User deletes their default Notion page
+   - App detects deletion and redirects to page selection
+   - User selects new default page
+
+6. **✅ Invalid License Key**
+   - User enters invalid/non-existent license
+   - Clear error message displayed
+   - Access denied until valid key provided
+
+7. **✅ Duplicate License Usage**
+   - Second user attempts to use already-activated license
+   - Authentication fails with appropriate error
+   - License remains tied to original user  
+   
 
 ---
 
 ## 🖥️ CLI Mode (Local Script)
+
+> **Note**: CLI mode is available for single-user/development scenarios using internal Notion integrations. For production multi-user deployments, use the **PWA mode with OAuth** (documented above). CLI mode does not support the OAuth authentication system or license keys.
 
 For quick local processing without the web interface.
 
@@ -304,7 +531,7 @@ PYTHONPATH=src uv run python src/Notes2Notion/main.py --test-mode
 **What happens in test mode:**
 - ✅ Detects images in `notes_pictures/`
 - ✅ Generates structured mock content (no GPT-4o-mini calls)
-- ✅ Simulates the enhancement workflow (no Azure OpenAI calls)
+- ✅ Simulates the enhancement workflow (no OpenAI calls)
 - ✅ **Actually uploads to Notion** (tests the real Notion integration)
 - 💰 **Cost: $0** (zero LLM API calls)
 
@@ -338,19 +565,34 @@ PYTHONPATH=src uv run pytest -v
 ### Backend
 - 🐍 **Python 3.12+**
 - 🌐 **Flask** - REST API server
-- 🤖 **OpenAI API** - GPT-4o-mini for vision/text extraction
-- ☁️ **Azure OpenAI** - GPT-4 for text processing (optional)
+- 🤖 **OpenAI API** - GPT-4o-mini for vision/text extraction AND text enhancement
 - 🔗 **LangChain & LangGraph** - AI workflow orchestration
 - 🧱 **Notion MCP Server** - Model Context Protocol integration
+- 🗄️ **SQLAlchemy** - ORM for database models
+- 🔄 **Alembic** - Database migration management
+- 🔐 **PyJWT** - JWT session token generation and validation
+- 🐬 **PyMySQL** - MySQL database driver
 - 🐳 **Docker** - Containerization
+
+### Database
+- 🗄️ **MySQL** - User data and license key persistence
+- 🔤 **UTF8MB4** - Full Unicode and emoji support
+- 🔐 **Encrypted storage** - Secure OAuth token storage
 
 ### Frontend
 - ⚛️ **Next.js 14** - React framework with SSR
 - 🎨 **Tailwind CSS** - Utility-first styling
 - 📱 **PWA** - Progressive Web App with offline support
 - 🔷 **TypeScript** - Type-safe development
+- 🔐 **OAuth 2.0** - Notion authentication flow
 
 ### DevOps
-- 🐳 **Docker Compose** - Multi-container orchestration
+- 🐳 **Docker Compose** - Multi-container orchestration (backend + frontend + MySQL)
 - 🧪 **Pytest** - Python testing
-- 🔧 **Makefile** - Task automation  
+- 🔧 **Makefile** - Task automation
+
+### Architecture
+- 🌐 **Multi-user architecture** - Per-user Notion credentials and workspace isolation
+- 🔐 **OAuth 2.0 authentication** - Industry-standard authorization flow
+- 🎫 **JWT session management** - Secure, stateless session tokens (7-day expiration)
+- 🔑 **License key gating** - BETA access control system  

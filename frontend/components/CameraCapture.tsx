@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 interface CameraCaptureProps {
   testMode: boolean;
@@ -26,6 +27,9 @@ export default function CameraCapture({ testMode }: CameraCaptureProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+  // Get refreshUser from auth context to sync state after errors
+  const { refreshUser } = useAuth();
 
   // Detect if device is mobile
   useEffect(() => {
@@ -185,16 +189,17 @@ export default function CameraCapture({ testMode }: CameraCaptureProps) {
     formData.append("photo", capturedBlob, "note.jpg");
     formData.append("test_mode", testMode.toString());
 
-    // Get access code from localStorage
-    const accessCode = localStorage.getItem("notes2notion_access_code");
+    // Get session token from localStorage (OAuth token)
+    const sessionToken = localStorage.getItem("notes2notion_session_token");
 
     try {
       const headers: HeadersInit = {};
-      if (accessCode) {
-        headers["Authorization"] = `Bearer ${accessCode}`;
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
       }
 
-      const response = await fetch(`${apiUrl}/api/upload`, {
+      // Use relative URL to call Next.js API proxy instead of direct backend call
+      const response = await fetch('/api/upload', {
         method: "POST",
         headers,
         body: formData,
@@ -203,9 +208,42 @@ export default function CameraCapture({ testMode }: CameraCaptureProps) {
       const result = await response.json();
 
       if (response.status === 401) {
-        // Unauthorized - clear stored access code and force re-authentication
-        localStorage.removeItem("notes2notion_access_code");
-        showStatus(`❌ Code d'accès invalide. Rechargez la page pour vous reconnecter.`, "error");
+        // Unauthorized - could be expired session or failed token refresh
+        // The backend message will tell us which one
+        const errorMessage = result.message || "Session expirée. Rechargez la page pour vous reconnecter.";
+        showStatus(`❌ ${errorMessage}`, "error");
+
+        // Only clear token and force reload if it's an auth failure
+        // (token refresh failed means the refresh_token is also invalid)
+        if (result.error === 'Authentication failed') {
+          localStorage.removeItem("notes2notion_session_token");
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
+        }
+        return;
+      }
+
+      if (response.status === 400 && result.error === 'No default page configured') {
+        // User hasn't configured page ID
+        showStatus(`❌ Aucune page Notion configurée. Configurez votre page par défaut.`, "error");
+        // Trigger page setup - the parent component will handle this
+        window.location.reload();
+        return;
+      }
+
+      if (response.status === 410 && result.error === 'page_deleted') {
+        // Page was deleted - backend has already cleared the page_id
+        // Show message and refresh user state from backend
+        showStatus(`❌ ${result.message}`, "error");
+
+        // Refresh user state from backend (will update has_page_id to false)
+        await refreshUser();
+
+        // Reload to trigger page setup flow
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
         return;
       }
 
@@ -218,7 +256,9 @@ export default function CameraCapture({ testMode }: CameraCaptureProps) {
           retakePhoto();
         }, 3000);
       } else {
-        showStatus(`❌ Erreur: ${result.error}`, "error");
+        // Display backend error message if available, otherwise use generic error
+        const errorMessage = result.message || result.error || "Erreur inconnue";
+        showStatus(`❌ ${errorMessage}`, "error");
       }
     } catch (err) {
       showStatus(`❌ Erreur réseau: ${err instanceof Error ? err.message : "Unknown error"}`, "error");

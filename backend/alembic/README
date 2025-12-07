@@ -1,0 +1,34 @@
+Generic single-database configuration for Notes2Notion.
+
+## Usage
+
+### Create a new migration (autogenerate)
+```bash
+alembic revision --autogenerate -m "description of changes"
+```
+
+### Apply migrations
+```bash
+alembic upgrade head
+```
+
+### View migration history
+```bash
+alembic history
+```
+
+### Rollback one migration
+```bash
+alembic downgrade -1
+```
+
+### View current revision
+```bash
+alembic current
+```
+
+## Notes
+
+- The `env.py` file automatically reads DATABASE_URL from environment variables
+- Migrations are stored in `alembic/versions/`
+- The initial migration creates the `users` table

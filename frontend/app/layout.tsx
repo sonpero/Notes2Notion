@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "../contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Notes2Notion - Capture vos notes",
@@ -10,13 +11,14 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Notes2Notion",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: "#667eea",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
 };
 
 export default function RootLayout({
@@ -31,7 +33,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="antialiased">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
