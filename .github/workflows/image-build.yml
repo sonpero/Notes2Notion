@@ -26,20 +26,20 @@ jobs:
         run: |
           docker build \
             -f backend/Dockerfile \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest \
+            -t "$DOCKERHUB_USERNAME/backend:latest" \
             backend
 
       - name: Build frontend image
         run: |
           docker build \
             -f frontend/Dockerfile \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/frontend:latest \
+            -t "$DOCKERHUB_USERNAME/frontend:latest" \
             frontend
 
       - name: Push backend image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+          docker push "$DOCKERHUB_USERNAME/backend:latest"
 
       - name: Push frontend image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/frontend:latest
+          docker push "$DOCKERHUB_USERNAME/frontend:latest"
