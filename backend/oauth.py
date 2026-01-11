@@ -26,6 +26,8 @@ NOTION_OAUTH_TOKEN_URL = "https://api.notion.com/v1/oauth/token"
 NOTION_CLIENT_ID = os.getenv("NOTION_CLIENT_ID")
 NOTION_CLIENT_SECRET = os.getenv("NOTION_CLIENT_SECRET")
 NOTION_REDIRECT_URI = os.getenv("NOTION_REDIRECT_URI")
+# NOTION_REDIRECT_URI = "https://notes2notion-frontend-production.up.railway.app/api/auth/callback"
+
 
 # JWT configuration for session tokens
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -238,6 +240,9 @@ def handle_oauth_callback(code: str, license_key: str = None) -> Dict[str, Any]:
     oauth_response = exchange_code_for_token(code)
 
     # Extract data from Notion response
+    print("OAuth flow started")
+    # print(f'access_token : {oauth_response["access_token"]}')
+
     access_token = oauth_response['access_token']
     refresh_token = oauth_response.get('refresh_token')
     bot_id = oauth_response['bot_id']

@@ -25,8 +25,17 @@ export default function NotionLoginPrompt({ onLoginSuccess, errorMessage }: Noti
     setIsLoading(true);
     setError(null);
 
+//     console.log("==== NOTION OAUTH DEBUG ====");
+//     console.log("NEXT_PUBLIC_NOTION_CLIENT_ID:", NOTION_CLIENT_ID);
+//     console.log("NEXT_PUBLIC_NOTION_REDIRECT_URI:", REDIRECT_URI);
+//     console.log("CLIENT_ID exists:", !!NOTION_CLIENT_ID);
+//     console.log("REDIRECT_URI exists:", !!REDIRECT_URI);
+
     // Validate required environment variables
     if (!NOTION_CLIENT_ID || !REDIRECT_URI) {
+      console.error("❌ OAuth configuration missing again");
+      console.error("CLIENT_ID value:", NOTION_CLIENT_ID);
+      console.error("REDIRECT_URI value:", REDIRECT_URI);
       setError('La configuration OAuth est manquante. Veuillez vérifier les variables d\'environnement.');
       setIsLoading(false);
       return;

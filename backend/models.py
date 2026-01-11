@@ -103,7 +103,10 @@ def get_database_url():
         ValueError: If DATABASE_URL is not set
     """
     url = os.getenv('DATABASE_URL')
+    if url.startswith("mysql://"):
+        url = url.replace("mysql://", "mysql+pymysql://", 1)
     if not url:
+        print("❌ DATABASE_URL environment variable is not set.")
         raise ValueError("DATABASE_URL environment variable is required")
     return url
 
@@ -144,13 +147,13 @@ def run_migrations():
 
     # Override sqlalchemy.url with environment variable
     alembic_cfg.set_main_option('sqlalchemy.url', get_database_url())
-
+    print(f"DB URL used by Alembic: {get_database_url()}")
     logger.info("🔄 Running database migrations...")
     try:
         command.upgrade(alembic_cfg, "head")
         logger.info("✅ Database migrations completed successfully")
     except Exception as e:
-        logger.error(f"❌ Migration failed: {e}")
+        logger.exception("❌ Migration failed")
         raise
 
 
