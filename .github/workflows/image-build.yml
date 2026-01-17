@@ -34,7 +34,7 @@ jobs:
           docker build \
             -f frontend/Dockerfile \
             -t "notes2notion/frontend:latest" \
-            .
+            frontend
 
       - name: Push backend image
         run: |
