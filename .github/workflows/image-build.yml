@@ -38,8 +38,8 @@ jobs:
 
       - name: Push backend image
         run: |
-          docker push "notes2notion/backend:latest"
+          docker push "sonpero/notes2notion/backend:latest"
 
       - name: Push frontend image
         run: |
-          docker push "notes2notion/frontend:latest"
+          docker push "sonpero/notes2notion/frontend:latest"
