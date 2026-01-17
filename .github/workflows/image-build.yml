@@ -26,20 +26,20 @@ jobs:
         run: |
           docker build \
             -f backend/Dockerfile \
-            -t "sonpero/notes2notion/backend:latest" \
+            -t "sonpero/notes2notion-backend:latest" \
             .
 
       - name: Build frontend image
         run: |
           docker build \
             -f frontend/Dockerfile \
-            -t "sonpero/notes2notion/frontend:latest" \
+            -t "sonpero/notes2notion-frontend:latest" \
             frontend
 
       - name: Push backend image
         run: |
-          docker push "sonpero/notes2notion/backend:latest"
+          docker push "sonpero/notes2notion-backend:latest"
 
       - name: Push frontend image
         run: |
-          docker push "sonpero/notes2notion/frontend:latest"
+          docker push "sonpero/notes2notion-frontend:latest"
