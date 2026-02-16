@@ -1,0 +1,49 @@
+name: Build and Push Docker Images
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        run: |
+          echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Build backend image
+        run: |
+          docker build \
+            -f backend/Dockerfile \
+            -t "sonpero/notes2notion-backend:latest" \
+            .
+
+      - name: Build frontend image
+        run: |
+          docker build \
+            --build-arg API_HOST=${{ secrets.API_HOST }} \
+            --build-arg APP_ENV=${{ secrets.APP_ENV }} \
+            --build-arg NOTION_CLIENT_ID=${{ secrets.NOTION_CLIENT_ID }} \
+            --build-arg NOTION_REDIRECT_URI=${{ secrets.NOTION_REDIRECT_URI }} \
+            -f frontend/Dockerfile \
+            -t "sonpero/notes2notion-frontend:latest" \
+            frontend
+
+      - name: Push backend image
+        run: |
+          docker push "sonpero/notes2notion-backend:latest"
+
+      - name: Push frontend image
+        run: |
+          docker push "sonpero/notes2notion-frontend:latest"
