@@ -6,8 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "langchain-openai>=0.3.33",
-    "langgraph>=0.6.7",
-    "mcp>=1.15.0",
+    "langgraph==0.6.7",
+    "notion-client>=2.3.0",
 ]
 
 [dependency-groups]
