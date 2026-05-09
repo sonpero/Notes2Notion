@@ -72,7 +72,6 @@ services:
     restart: unless-stopped
     networks:
       - notes2notion-network
-
 networks:
   notes2notion-network:
     driver: bridge
